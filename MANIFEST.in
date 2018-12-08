@@ -1,0 +1,3 @@
+include README.md CONTRIBUTING.md LICENSE
+include apertureoptimizer/data/*
+include apertureoptimizer/tests/data/*
