@@ -11,7 +11,7 @@ if "release" in sys.argv[-1]:
     sys.exit()
 
 # Load the __version__ variable without importing the package already
-exec(open('apertureoptimizer/version.py').read())
+exec(open('version.py').read())
 
 setup(name='apertureoptimizer',
       version=__version__,
@@ -20,9 +20,6 @@ setup(name='apertureoptimizer',
       author='KeplerGO',
       author_email='keplergo@mail.arc.nasa.gov',
       license='MIT',
-      package_dir={
-            'apertureoptimizer': 'apertureoptimizer'},
-      packages=['apertureoptimizer'],
       install_requires=['numpy>=1.11', 'astropy>=1.3',
                         'matplotlib>=1.5.3', 'tqdm', 'lightkurve'],
       setup_requires=['pytest-runner'],

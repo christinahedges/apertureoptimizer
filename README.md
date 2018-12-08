@@ -26,7 +26,7 @@ def corrector(lc):
     return clc
 
 # Make an ApertureOptimizer Class, pass in the False Positive parameters
-a = ApertureBuilder(tpf, period=1.334104268, t0=133.701635, duration=3.0142, corrector=corrector)
+a = ApertureOptimizer(tpf, period=1.334104268, t0=133.701635, duration=3.0142, corrector=corrector)
 
 # Optimize the aperture
 a.optimize()

@@ -6,6 +6,7 @@ import numpy as np
 from astropy.convolution import convolve, Box1DKernel
 from tqdm import tqdm
 from copy import deepcopy
+import warnings
 
 class ApertureOptimizer(object):
     '''Class to optimze apertures
@@ -20,7 +21,9 @@ class ApertureOptimizer(object):
         self.tpf = tpf
         self.Y, self.X = np.meshgrid(np.arange(0, tpf.shape[1]), np.arange(0, tpf.shape[2]))
         # Mask where TPF actually has data.
-        self.tpf_has_data = np.isfinite(np.nanmedian(tpf.flux, axis=0))
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            self.tpf_has_data = np.isfinite(np.nanmedian(tpf.flux, axis=0))
         self.period = period
         self.t0 = t0
         self.duration = duration
@@ -51,7 +54,7 @@ class ApertureOptimizer(object):
             aper = np.zeros(self.tpf.shape[1:], dtype=bool)
             aper[idx, jdx] = True
             lc = self.tpf.to_lightcurve(aperture_mask=aper).normalize()
-            clc = corrector(lc)
+            clc = self.corrector(lc)
             average_error = np.nanmean(clc.flux_err[~self.mask(clc.time)])
             depth = 1 - np.nanmean(clc.flux[~self.mask(clc.time)])
             snr[kdx] = depth/average_error
@@ -172,17 +175,17 @@ class ApertureOptimizer(object):
         if fig is None:
             fig = plt.figure(figsize=(10, 10))
         ax = plt.subplot2grid((2,2), (0,0), fig=fig)
-        tpf.plot(aperture_mask=self.tpf.pipeline_mask, ax=ax, show_colorbar=False)
+        self.tpf.plot(aperture_mask=self.tpf.pipeline_mask, ax=ax, show_colorbar=False)
         ax.set_title("Pipeline Aperture")
         ax = plt.subplot2grid((2,2), (0,1))
-        tpf.plot(aperture_mask=self.best_aper, ax=ax)
+        self.tpf.plot(aperture_mask=self.best_aper, ax=ax, show_colorbar=False)
         ax.set_title("Optimal Aperture")
         ax.set_ylabel('')
         ax = plt.subplot2grid((2,2), (1,0), colspan=2)
-        pipeline_lc = self.corrector(tpf.to_lightcurve()).fold(self.period).bin(10)
+        pipeline_lc = self.corrector(self.tpf.to_lightcurve()).fold(self.period).bin(10)
         pipeline_lc.errorbar(label='', c='k', ax=ax)
         pipeline_lc.plot(ax=ax, label='Pipeline Aperture', c='k')
-        best = self.corrector(tpf.to_lightcurve(aperture_mask=self.best_aper)).fold(self.period).bin(10)
+        best = self.corrector(self.tpf.to_lightcurve(aperture_mask=self.best_aper)).fold(self.period).bin(10)
         best.errorbar(ax=ax, label='', c='r')
         best.plot(ax=ax, label='Optimal Aperture', c='r')
         return fig
