@@ -8,6 +8,10 @@ from tqdm import tqdm
 from copy import deepcopy
 import warnings
 
+class ApertureOptimizerError(Exception):
+    '''Raised if there is a problem...'''
+    pass
+
 class ApertureOptimizer(object):
     '''Class to optimze apertures
     '''
@@ -32,13 +36,39 @@ class ApertureOptimizer(object):
         else:
             self.corrector = lambda x: x
         self.mask = lambda x: self._transit_mask(x, self.period, self.t0, self.duration)
+        if not (~self.mask(self.tpf.time)).any():
+            raise ApertureOptimizerError('No transits found.')
         self.starting_mask = self._find_starting_pixel()
         self.starting_lc = self.corrector(self.tpf.to_lightcurve())
 
 
     def __repr__(self):
         return ('ApertureBuilder Class. TPF ID {}, Period:{}, t0:{}, duration:{}'
-                ''.format(tpf.targetid, self.period, self.t0, self.duration))
+                ''.format(self.tpf.targetid, self.period, self.t0, self.duration))
+
+
+    def _measure_snr(self, clc):
+        ''' Measure the signal to noise for a given light curve
+        '''
+        mask = ~self.mask(clc.time)
+
+        # Find errors...
+        intransit_error = (np.nansum(clc.flux_err[mask]**2)**0.5)/float(np.sum(mask))
+        if np.sum(~mask) != 0:
+            outtransit_error = (np.nansum(clc.flux_err[~mask]**2)**0.5)/float(np.sum(~mask))
+        else:
+            outtransit_error = 0
+        average_error = (intransit_error**2 + outtransit_error**2)**0.5
+
+        # Measure depth
+        depth = np.nanmean(clc.flux[~mask]) - np.nanmean(clc.flux[mask])
+
+
+#        error = (average_error**2 + np.std(clc.flux[~mask] - depth)**2)**0.5
+        error = average_error
+        snr = depth/error
+        return snr
+
 
 
     def _find_starting_pixel(self):
@@ -49,15 +79,13 @@ class ApertureOptimizer(object):
         aper : np.ndarray with shape of tpf pixels
             Boolean mask with the best starting pixel
         '''
-        snr = np.zeros(self.tpf.shape[1] * self.tpf.shape[2], dtype=float)
+        snr = np.zeros(len(np.where(self.tpf_has_data)[0]), dtype=float)
         for kdx, idx, jdx in zip(range(self.tpf.shape[1] * self.tpf.shape[2]), np.where(self.tpf_has_data)[0], np.where(self.tpf_has_data)[1]):
             aper = np.zeros(self.tpf.shape[1:], dtype=bool)
             aper[idx, jdx] = True
             lc = self.tpf.to_lightcurve(aperture_mask=aper).normalize()
             clc = self.corrector(lc)
-            average_error = np.nanmean(clc.flux_err[~self.mask(clc.time)])
-            depth = 1 - np.nanmean(clc.flux[~self.mask(clc.time)])
-            snr[kdx] = depth/average_error
+            snr[kdx] = self._measure_snr(clc)
 
         best = np.argmax(snr)
         idx, jdx = np.where(self.tpf_has_data)[0][best], np.where(self.tpf_has_data)[1][best]
@@ -142,16 +170,13 @@ class ApertureOptimizer(object):
             if len(pixels) == 0:
                 break
             snr = np.zeros(len(pixels))
-            depth = np.zeros(len(pixels))
-            average_error = np.zeros(len(pixels))
             for idx, n in enumerate(pixels):
                 aper = np.copy(used)
                 aper[n[0], n[1]] = True
                 lc = self.tpf.to_lightcurve(aperture_mask=aper).normalize()
                 clc = self.corrector(lc)
-                average_error = np.nanmean(clc.flux_err[~self.mask(clc.time)])
-                depth[idx] = 1 - np.nanmean(clc.flux[~self.mask(clc.time)])
-                snr[idx] = depth[idx]/average_error
+                snr[idx] = self._measure_snr(clc)
+
 
             best = pixels[snr.argmax()]
             used[(best[0], best[1])] = True
@@ -167,7 +192,7 @@ class ApertureOptimizer(object):
 #        return apers[best]
 
 
-    def plot_results(self, fig=None):
+    def plot_results(self, fig=None, bin=20):
         '''Plot up the results.
         '''
         if not hasattr(self, 'best_lc'):
@@ -182,10 +207,10 @@ class ApertureOptimizer(object):
         ax.set_title("Optimal Aperture")
         ax.set_ylabel('')
         ax = plt.subplot2grid((2,2), (1,0), colspan=2)
-        pipeline_lc = self.corrector(self.tpf.to_lightcurve()).fold(self.period).bin(10)
+        pipeline_lc = self.corrector(self.tpf.to_lightcurve()).fold(self.period, self.t0).bin(bin)
         pipeline_lc.errorbar(label='', c='k', ax=ax)
         pipeline_lc.plot(ax=ax, label='Pipeline Aperture', c='k')
-        best = self.corrector(self.tpf.to_lightcurve(aperture_mask=self.best_aper)).fold(self.period).bin(10)
+        best = self.corrector(self.tpf.to_lightcurve(aperture_mask=self.best_aper)).fold(self.period, self.t0).bin(bin)
         best.errorbar(ax=ax, label='', c='r')
         best.plot(ax=ax, label='Optimal Aperture', c='r')
         return fig

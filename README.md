@@ -2,6 +2,12 @@
 
 Aperture optimizer helps you find the optimal aperture from a Kepler or TESS Target Pixel File, using `lightkurve`.
 
+**Warning: Currently not working properly...**
+
+### TODO:
+
+Make sure that the penalty is correct to find the best aperture.
+
 ### Installation
 
 ```
