@@ -7,7 +7,7 @@ from astropy.convolution import convolve, Box1DKernel
 from tqdm import tqdm
 from copy import deepcopy
 
-class ApertureBuilder(object):
+class ApertureOptimizer(object):
     '''Class to optimze apertures
     '''
     def _transit_mask(self, time, period, t0, duration):
@@ -31,7 +31,7 @@ class ApertureBuilder(object):
         self.mask = lambda x: self._transit_mask(x, self.period, self.t0, self.duration)
         self.starting_mask = self._find_starting_pixel()
         self.starting_lc = self.corrector(self.tpf.to_lightcurve())
-        self._find_best_aperture()
+
 
     def __repr__(self):
         return ('ApertureBuilder Class. TPF ID {}, Period:{}, t0:{}, duration:{}'
