@@ -21,7 +21,7 @@ class ApertureOptimizer(object):
         mask = ~(np.abs((time - t0 + hp) % period - hp) < 0.5 * duration)
         return mask
 
-    def __init__(self, tpf, period, t0, duration, corrector=None):
+    def __init__(self, tpf, period, t0, duration, corrector=None, initial_mask=None):
         self.tpf = tpf
         self.Y, self.X = np.meshgrid(np.arange(0, tpf.shape[1]), np.arange(0, tpf.shape[2]))
         # Mask where TPF actually has data.
@@ -38,7 +38,10 @@ class ApertureOptimizer(object):
         self.mask = lambda x: self._transit_mask(x, self.period, self.t0, self.duration)
         if not (~self.mask(self.tpf.time)).any():
             raise ApertureOptimizerError('No transits found.')
-        self.starting_mask = self._find_starting_pixel()
+        if initial_mask is None:
+            self.starting_mask = self._find_starting_pixel()
+        else:
+            self.starting_mask = initial_mask
         self.starting_lc = self.corrector(self.tpf.to_lightcurve())
 
 
@@ -80,7 +83,7 @@ class ApertureOptimizer(object):
             Boolean mask with the best starting pixel
         '''
         snr = np.zeros(len(np.where(self.tpf_has_data)[0]), dtype=float)
-        for kdx, idx, jdx in zip(range(self.tpf.shape[1] * self.tpf.shape[2]), np.where(self.tpf_has_data)[0], np.where(self.tpf_has_data)[1]):
+        for kdx, idx, jdx in tqdm(zip(range(self.tpf.shape[1] * self.tpf.shape[2]), np.where(self.tpf_has_data)[0], np.where(self.tpf_has_data)[1]), desc='Finding Starting Pixel', total=self.tpf.shape[1] * self.tpf.shape[2]):
             aper = np.zeros(self.tpf.shape[1:], dtype=bool)
             aper[idx, jdx] = True
             lc = self.tpf.to_lightcurve(aperture_mask=aper).normalize()
